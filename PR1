@@ -54,11 +54,13 @@ logit.pred <- predict(logit.fit,test,type="response")
 probit.pred <- predict(probit.fit, test, type="response")
 
 ## VISUALISASI
+#distribusi data tes sebenarnya
+test$colour <-ifelse(test$type=="kelas 1",2,3)
+plot(test$x,test$y,xlab="x",ylab="y", col=test$colour, main="data asli")
 #Visualisasi hasil LDA
 ggplot(test, aes(x, fill =lda.pred$class)) +geom_density(alpha = 0.2)+ geom_histogram(alpha = 0.5, aes(y=..density..), position = 'identity')
 ldahist(lda.pred$x[,1],g=lda.pred$class)
 ggplot(data = test, aes(x = x, y = y, colour = as.factor(lda.pred$class))) + geom_point()
-
 #boundary logit. sebagai contoh diambil n=0.35
 test$logit <- ifelse(logit.pred > 0.35,2,3)
 test$logit
