@@ -1,0 +1,85 @@
+## Tugas Kapita Selekta Statistika 1
+## “Membuat Klasifikasi dengan 3 teknik klasifikasi : LDA, Probit, dan Logit”
+## MA 4182 Kapita Selekta Statistika I
+## Dosen : Sapto Wahyu Indratno S.Si., M.Sc., Ph.D.
+## Vanessa Ambar Sutandar
+## 10115049
+
+
+#library yang dibutuhkan
+library(MASS) 
+library(ggplot2)
+library(ROCR)
+
+## MEMBUAT KELAS 1 DAN KELAS 2
+# Membuat dataset multivariat kelas 1 dan kelas 2 seperti yang diinginkan
+set.seed(123)
+kelas1<-cbind(setNames(data.frame(mvrnorm(1000,c(0,0),diag(2)*0.4)), c("x","y")), type="kelas 1")
+kelas2<-cbind(setNames(data.frame(mvrnorm(1000,c(0,0),diag(2)*10)), c("x","y")), type="kelas 2")
+
+# Membuang data kelas2 yang radiusnya kurang dari 4 ke pusat
+kelas2 <- subset(kelas2, ((x)^2 + (y)^2)>16)
+
+# Visualisasi tambahan (sebagai pembantu pemeriksaan), merah untuk kelas 1 dan hijau untuk kelas 2
+plot(kelas2$x,kelas2$y, col=3, xlab="x", ylab="y", main="visualisasi data") + points(kelas1$x,kelas1$y, col=2)
+
+## MEMERIKSA CLASS BIAS
+table(rbind(kelas1, kelas2))
+
+## MEMBANGUN TRAIN DATA DAN TEST DATA
+# Memilih secara acak baris mana yang dijadikan sebagai train dataset
+# dipilih dari kelas 1 dan kelas 2 supaya proporsinya sama
+# Ukuran sebesar 70% dari masing2 data, indeks diberi nama ind1 dan ind2
+ind1 <- sample(nrow(kelas1),  size = nrow(kelas1)*0.7)
+ind2 <- sample(nrow(kelas2), size = nrow(kelas2)*0.7)
+# Membuat 'train data' dan 'test data'
+train <- rbind(kelas1[ind1,],kelas2[ind2,])
+test <- rbind(kelas1[-ind1,],kelas2[-ind2,])
+
+#Visualisasi total dan train
+ggplot(train, aes(x, fill = as.factor(type))) +geom_density(alpha = 0.2) + geom_histogram(alpha = 0.5, aes(y=..density..), position = 'identity')
+ggplot(train, aes(y, fill = as.factor(type))) +geom_density(alpha = 0.2) + geom_histogram(alpha = 0.5, aes(y=..density..), position = 'identity')
+ggplot(rbind(kelas1, kelas2), aes(x, fill = as.factor(type))) +geom_density(alpha = 0.2) + geom_histogram(alpha = 0.5, aes(y=..density..), position = 'identity')
+ggplot(rbind(kelas1, kelas2), aes(y, fill = as.factor(type))) +geom_density(alpha = 0.2) + geom_histogram(alpha = 0.5, aes(y=..density..), position = 'identity')
+
+## Membuat fitting model dengan 'train data' menggunakan LDA, probit, dan logit
+lda.fit <- lda(type ~ x+y, data = train) # Model fitting lda
+logit.fit <- glm(type ~ x+y,  data=train ,family=binomial(link="logit")) # Model fitting logit
+probit.fit <- glm(type ~x+y, data=train ,family=binomial(link="probit")) # Model fitting probit
+
+## Menilai kemampuan prediksi model LDA, probit, dan logit
+# Mengeluarkan prediksi sesuai dengan model
+lda.pred <- predict(lda.fit, newdata = test) 
+logit.pred <- predict(logit.fit,test,type="response")
+probit.pred <- predict(probit.fit, test, type="response")
+
+## VISUALISASI
+#Visualisasi hasil LDA
+ggplot(test, aes(x, fill =lda.pred$class)) +geom_density(alpha = 0.2)+ geom_histogram(alpha = 0.5, aes(y=..density..), position = 'identity')
+ldahist(lda.pred$x[,1],g=lda.pred$class)
+ggplot(data = test, aes(x = x, y = y, colour = as.factor(lda.pred$class))) + geom_point()
+
+#boundary logit. sebagai contoh diambil n=0.35
+test$logit <- ifelse(logit.pred > 0.35,2,3)
+test$logit
+plot(test$x,test$y,xlab="x",ylab="y", col=test$logit, main="hasil klasifikasi logit")
+#boundary logit. sebagai contoh diambil n=0.325
+test$probit <- ifelse(probit.pred > 0.325,2,3)
+plot(test$x,test$y,xlab="x",ylab="y", col=test$probit, main="hasil klasifikasi probit")
+
+## Menilai kebagusan model
+lda.pr <- prediction(lda.pred$posterior[,1], test$type)
+logit.pr <- prediction(logit.pred, test$type)
+probit.pr <- prediction(probit.pred, test$type)
+lda.prf <- performance(lda.pr, measure = "tpr", x.measure = "fpr")
+logit.prf <- performance(logit.pr, measure = "tpr", x.measure = "fpr")
+probit.prf <- performance(probit.pr, measure = "tpr", x.measure = "fpr")
+lda.auc <- performance(lda.pr, measure="auc")@y.values[1]
+logit.auc <- performance(logit.pr, measure="auc")@y.values[1]
+probit.auc <- performance(probit.pr, measure="auc")@y.values[1]
+plot(lda.prf)
+plot(logit.prf)
+plot(probit.prf)
+lda.auc
+logit.auc
+probit.auc
