@@ -1,0 +1,89 @@
+library(metRology) #library yang digunakan untuk memanggil fungsi dt.scaled
+library(grid) #library yang dibutuhkan untuk menjalankan library bcp
+library(bcp) #library untuk bayesian changepoint
+
+# Data awal seperti yang diberikan soal
+set.seed(100)
+data <- c(rnorm(50,0,sqrt(2)), rnorm(100,1,sqrt(2)), rnorm(50,-0.5,sqrt(2)))
+
+#Inputan alpha, beta, kappa, mu awal
+a <- 2
+b <- 2
+k <- 1
+mu <- 0
+H <- 0.04
+
+#Inisiasi nilai peluang pertama
+maxi <- matrix(0,length(data),1) #run length
+pdf <- matrix(0,length(data),1) #peluang prediktif
+R <- matrix(0,length(data),length(data)) #peluang changepoint
+P <- matrix(0,length(data),length(data)) #distribusi run length
+R[1,1]<-1
+P[1,1]<-1
+maxi[1]<-1
+
+# Mencari distribusi prediktif untuk setiap datum yang baru
+t<-1
+l<-1
+for (i in data[-1]) #iterasi untuk data kedua hingga terakhir
+{
+  # Memasukkan data baru ke t+1
+  l<-l+1
+  t<-t+1
+  #Hitung peluang prediktifnya
+  pdf[l-t+2:l]<-  dt.scaled(data[l-t+2:l], 2*a, mean = mu, sd = sqrt(b*(k+1)/(a*k)), log = FALSE)
+  # Menghitung peluang tumbuh
+  R[2:(t),l]<-R[1:t-1,l-1]*pdf[(l-t+2):l]*(1-H)
+  # Menghitung peluang changepoint
+  R[1,l]<-sum(R[1:t-1,l-1]*pdf[(l-t+2):l]*H)  
+  # Menghitung Calculate evidence
+  a<-sum(R[,l])
+  # Menentukan run length distribution
+  P[,l]<-R[,l]/a
+  # Update parameter
+  # Perhatikan kita ada tambahan 
+  maxi[l]<-match(max(P[,l]),P[,l])
+  if (maxi[l]==t){
+    mu <- (k*mu+i)/(k+1)
+    k <- k+1
+    a <- a + 0.5
+    b <- b + (k*(i-mu)**2)/(2*(k+1))
+  } else {
+    a <- 2
+    b <- 2
+    k <- 1
+    mu <- 1
+    t<-1
+    R[1,l]<-1
+    P[1,l]<-1
+    maxi[l]<-1
+  }
+}
+max(P[,47])
+bcp$posterior.prob[47]
+# Mencari nilai change point
+x<- data.frame("r" = maxi,"index" =c(1:length(data)))
+changepoint <-x[maxi==1,2]
+changepoint[-1]
+
+# Visualisasi run length
+library(raster) #package yang dibutuhkan untuk membuat visualisasi sederhana
+v <- matrix(0,length(data),length(data)) # inisiasi matrix untuk visualisasi
+# menukar balikkan data P dengan v supaya lebih enak dilihat
+for (j in 1:sqrt(length(P))){
+  for (i in 1:sqrt(length(P))) {
+    v[i,j]<-P[sqrt(length(P))-i+1,j]
+  }
+}
+
+# visualisasi data yang diinginkan dengan skala yang sudah diatur sesuai panjang data
+plot(data, type="l", xlab="time", main="data ke - t")
+plot(raster(v, xmx=length(data), xmn=0, ymx=length(data),ymn=0),
+     main="runlength",ylab="runlength", xlab="time")
+
+
+# Cara yang lebih singkat
+bcp <- bcp(data)
+plot(bcp, main="Univariate Change Point Example")
+legacyplot(bcp)
+summary(bcp)
